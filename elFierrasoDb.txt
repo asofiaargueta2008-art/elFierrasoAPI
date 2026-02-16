@@ -1,0 +1,79 @@
+CREATE DATABASE elfierraso;
+GO
+USE elfierraso;
+GO
+
+CREATE TABLE ventas(
+	idVenta INT IDENTITY(1,1) PRIMARY KEY,
+	fecha DATETIME DEFAULT GETDATE(),
+	cantidadVendida INT NOT NULL
+		CHECK (cantidadVendida > 0),
+	total DECIMAL(10,2) NOT NULL,
+	idProducto INT NOT NULL,
+	FOREIGN KEY(idProducto) REFERENCES productos(idProducto)
+);
+GO
+CREATE TABLE proveedores(
+	idProveedor INT IDENTITY(1,1) PRIMARY KEY,
+	nombre NVARCHAR(100) NOT NULL,
+	telefono INT NOT NULL
+		CHECK (telefono > 9999999),
+	urlImagen NVARCHAR(500),
+	email NVARCHAR(255) NOT NULL
+		CHECK (PATINDEX('%[A-Za-z0-9._%+-]@[A-Za-z0-9.-]%.[A-Za-z]%', email) > 0)
+);
+
+CREATE TABLE productos(
+	idProducto INT IDENTITY(1,1) PRIMARY KEY,
+	nombre NVARCHAR(50) NOT NULL,
+	precio DECIMAL(10, 2) NOT NULL
+		CHECK (precio >= 0),
+	urlImagen NVARCHAR(500),
+	stock INT NOT NULL
+		CHECK (stock >= 0)
+	idProveedor INT NOT NULL, 
+	FOREIGN KEY (idProveedor) REFERENCES proveedor(idProveedor)
+);
+GO
+
+	
+
+--- PROCEDIMIENTO ALMACENADO ---
+
+CREATE PROCEDURE RegistrarVenta
+	@idProducto INT,
+	@cantidad INT
+AS
+BEGIN
+	SET NOCOUNT ON;
+
+	BEGIN TRANSACTION;
+	
+	DECLARE @StockActual INT;
+	
+	SELECT @StockActual = stock
+	FROM productos
+	WHERE idProducto = @IdProducto;
+	
+	IF @StockActual IS NULL 
+	BEGIN
+		RAISERROR('Producto no existente', 16, 1);
+		ROLLBACK TRANSACTION;
+		RETURN;
+	END
+
+	IF @cantidad > @StockActual
+	BEGIN
+		RAISERROR('Stock Insuficiente', 16, 1);
+		ROLLBACK TRANSACTION;
+		RETURN;
+	END
+
+	INSERT INTO ventas(idProducto, cantidad)
+	VALUES (@idProducto, @cantidad);
+
+	UPDATE productos
+	SET stock = stock - @cantidad
+	WHERE idProducto = @idProducto;
+	COMMIT TRANSACTION;
+END;
