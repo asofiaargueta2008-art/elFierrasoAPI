@@ -2,6 +2,7 @@
 using elFierrasoAPI.Data;
 using elFierrasoAPI.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Data.SqlClient;
 
 namespace elFierrasoAPI.Controllers
 {
@@ -37,11 +38,33 @@ namespace elFierrasoAPI.Controllers
 
         // POST: api/Ventas
         [HttpPost]
-        public IActionResult CreateVenta(Ventas venta)
+        public IActionResult CreateVenta([FromBody]Ventas venta)
         {
-            _context.Ventas.Add(venta);
-            _context.SaveChanges();
-            return CreatedAtAction(nameof(GetVenta), new { id = venta.idVenta }, venta);
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            if (venta.cantidadVendida <= 0)
+                return BadRequest(new { message = "La cantidad vendida debe ser mayor a 0." });
+
+            try
+            {
+                _context.Database.ExecuteSqlRaw(
+                     "EXEC dbo.RegistrarVenta @idProducto, @cantidadVendida",
+                     new SqlParameter("@idProducto", venta.idProducto),
+                     new SqlParameter("@cantidadVendida", venta.cantidadVendida)
+                 );
+
+
+                // devolver algo útil: la última venta creada para ese producto (opcional)
+                var ultimaVenta = _context.Ventas
+                    .OrderByDescending(v => v.idVenta)
+                    .FirstOrDefault();
+
+                return Ok(new { message = "Venta registrada y stock actualizado.", venta = ultimaVenta });
+            }
+            catch (Exception ex)
+            {
+                // Si querés fino: revisar ex.InnerException.Message para "Stock insuficiente"
+                return BadRequest(new { message = ex.InnerException?.Message ?? ex.Message });
+            }
         }
 
     }

@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.WebHost.UseUrls("http://0.0.0.0:5205");
+
 // Add services to the container.
 builder.Services.AddDbContext<elFierrasoDbContext>
     (options =>

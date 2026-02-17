@@ -10,8 +10,8 @@ namespace elFierrasoAPI.Models
         public string nombre { get; set; } = string.Empty;
         public string descripcion { get; set; } = string.Empty;
         public decimal precio { get; set; }
-        public string? urlImage { get; set; }
-        public sbyte stock { get; set; }
+        public string? urlImagen { get; set; }
+        public int stock { get; set; }
         public int idProveedor { get; set; }
     }
 }

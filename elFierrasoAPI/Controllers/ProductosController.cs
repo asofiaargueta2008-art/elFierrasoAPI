@@ -31,7 +31,7 @@ namespace elFierrasoAPI.Controllers
             var producto = _context.Productos.Find(id);
             if (producto == null)
             {
-                return NotFound();
+                return NotFound(new { message = "Producto no encontrado." });
             }
             return Ok(producto);
         }
@@ -40,8 +40,16 @@ namespace elFierrasoAPI.Controllers
         [HttpPost]
         public IActionResult CreateProducto([FromBody] Productos producto)
         {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            var proveedorExiste = _context.Proveedores.Any(p => p.idProveedor == producto.idProveedor);
+            if (!proveedorExiste)
+                return BadRequest(new { message = "El idProveedor no existe." });
+
             _context.Productos.Add(producto);
             _context.SaveChanges();
+
             return CreatedAtAction(nameof(GetProducto), new { id = producto.idProducto }, producto);
         }
 
@@ -49,15 +57,20 @@ namespace elFierrasoAPI.Controllers
         [HttpPut("{id}")]
         public IActionResult UpdateProducto(int id, [FromBody] Productos producto)
         {
-            if (id != producto.idProducto) return BadRequest();
+            if (id != producto.idProducto) 
+                return BadRequest(new { message = "El id no coincide."});
+            
+            if(!ModelState.IsValid) 
+                return BadRequest(ModelState);
 
             var existingProducto = _context.Productos.Find(id);
-            if (existingProducto == null) return NotFound();
+            if (existingProducto == null) 
+                return NotFound(new { message = "Producto no encontrado."});
 
             existingProducto.nombre = producto.nombre;
             existingProducto.precio = producto.precio;
             existingProducto.stock = producto.stock;
-            existingProducto.urlImage = producto.urlImage;
+            existingProducto.urlImagen = producto.urlImagen;
             existingProducto.idProveedor = producto.idProveedor;
 
             _context.SaveChanges();
@@ -69,22 +82,30 @@ namespace elFierrasoAPI.Controllers
         public IActionResult UpdateProductoPartial(int id, [FromBody] Productos producto)
         {
             var existingProducto = _context.Productos.Find(id);
-            if (existingProducto == null) return NotFound();
+            if (existingProducto == null)
+                return NotFound(new { message = "Producto no encontrado." });
 
-            if (!string.IsNullOrEmpty(producto.nombre))
+            if (!string.IsNullOrWhiteSpace(producto.nombre))
                 existingProducto.nombre = producto.nombre;
 
-            if (producto.precio != 0)
+            if (producto.precio > 0)
                 existingProducto.precio = producto.precio;
+            else if (producto.precio < 0)
+                return BadRequest(new { message = "El precio no puede ser negativo." });
 
             if (producto.stock != 0)
+            {
+                if (producto.stock < 0) return BadRequest(new { message = "El stock no puede ser negativo." });
                 existingProducto.stock = producto.stock;
+            }
 
-            if (!string.IsNullOrEmpty(producto.urlImage))
-                existingProducto.urlImage = producto.urlImage;
+            if (!string.IsNullOrWhiteSpace(producto.urlImagen))
+                existingProducto.urlImagen = producto.urlImagen;
 
-            if (producto.idProveedor != 0)
+            if (producto.idProveedor > 0)
                 existingProducto.idProveedor = producto.idProveedor;
+            else if (producto.idProveedor < 0)
+                return BadRequest(new { message = "idProveedor inválido." });
 
             _context.SaveChanges();
             return Ok(existingProducto);
@@ -95,10 +116,11 @@ namespace elFierrasoAPI.Controllers
         public IActionResult DeleteProducto(int id)
         {
             var producto = _context.Productos.Find(id);
-            if (producto == null) return NotFound();
+            if (producto == null) return NotFound(new { message = "Producto no encontrado." });
 
             _context.Productos.Remove(producto);
             _context.SaveChanges();
+
             return NoContent();
         }
     }
