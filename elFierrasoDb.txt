@@ -1,8 +1,35 @@
-CREATE DATABASE elfierraso;
-GO
 USE elfierraso;
 GO
 
+-- Tabla Proveedores
+CREATE TABLE proveedores(
+	idProveedor INT IDENTITY(1,1) PRIMARY KEY,
+	nombre NVARCHAR(100) NOT NULL,
+	telefono BIGINT NOT NULL
+		CHECK (telefono > 9999999),
+	urlImagen NVARCHAR(500),
+	email NVARCHAR(255) NOT NULL
+		CHECK (PATINDEX('%[A-Za-z0-9._%+-]@[A-Za-z0-9.-]%.[A-Za-z]%', email) > 0)
+);
+GO
+
+-- Tabla Productos
+CREATE TABLE productos(
+	idProducto INT IDENTITY(1,1) PRIMARY KEY,
+	nombre NVARCHAR(50) NOT NULL,
+	descripcion NVARCHAR(500),
+	precio DECIMAL(10, 2) NOT NULL
+		CHECK (precio >= 0),
+	urlImagen NVARCHAR(500),
+	stock INT NOT NULL
+		CHECK (stock >= 0),
+	activo BIT NOT NULL DEFAULT 1,
+	idProveedor INT NOT NULL, 
+	FOREIGN KEY (idProveedor) REFERENCES proveedores(idProveedor)
+);
+GO
+
+-- Tabla Ventas
 CREATE TABLE ventas(
 	idVenta INT IDENTITY(1,1) PRIMARY KEY,
 	fecha DATETIME DEFAULT GETDATE(),
@@ -13,67 +40,110 @@ CREATE TABLE ventas(
 	FOREIGN KEY(idProducto) REFERENCES productos(idProducto)
 );
 GO
-CREATE TABLE proveedores(
-	idProveedor INT IDENTITY(1,1) PRIMARY KEY,
-	nombre NVARCHAR(100) NOT NULL,
-	telefono INT NOT NULL
-		CHECK (telefono > 9999999),
-	urlImagen NVARCHAR(500),
-	email NVARCHAR(255) NOT NULL
-		CHECK (PATINDEX('%[A-Za-z0-9._%+-]@[A-Za-z0-9.-]%.[A-Za-z]%', email) > 0)
-);
 
-CREATE TABLE productos(
-	idProducto INT IDENTITY(1,1) PRIMARY KEY,
-	nombre NVARCHAR(50) NOT NULL,
-	precio DECIMAL(10, 2) NOT NULL
-		CHECK (precio >= 0),
-	urlImagen NVARCHAR(500),
-	stock INT NOT NULL
-		CHECK (stock >= 0)
-	idProveedor INT NOT NULL, 
-	FOREIGN KEY (idProveedor) REFERENCES proveedor(idProveedor)
-);
+//SERVICES
+
+USE elfierraso;
 GO
 
-	
-
---- PROCEDIMIENTO ALMACENADO ---
-
 CREATE PROCEDURE RegistrarVenta
-	@idProducto INT,
-	@cantidad INT
+    @idProducto INT,
+    @cantidad INT
 AS
 BEGIN
-	SET NOCOUNT ON;
+    SET NOCOUNT ON;
 
-	BEGIN TRANSACTION;
-	
-	DECLARE @StockActual INT;
-	
-	SELECT @StockActual = stock
-	FROM productos
-	WHERE idProducto = @IdProducto;
-	
-	IF @StockActual IS NULL 
-	BEGIN
-		RAISERROR('Producto no existente', 16, 1);
-		ROLLBACK TRANSACTION;
-		RETURN;
-	END
+    BEGIN TRANSACTION;
 
-	IF @cantidad > @StockActual
-	BEGIN
-		RAISERROR('Stock Insuficiente', 16, 1);
-		ROLLBACK TRANSACTION;
-		RETURN;
-	END
+    DECLARE @StockActual INT;
+    DECLARE @Precio DECIMAL(10,2);
 
-	INSERT INTO ventas(idProducto, cantidad)
-	VALUES (@idProducto, @cantidad);
+    -- Obtener stock y precio
+    SELECT 
+        @StockActual = stock,
+        @Precio = precio
+    FROM productos
+    WHERE idProducto = @idProducto
+      AND activo = 1;  -- solo productos activos
 
-	UPDATE productos
-	SET stock = stock - @cantidad
-	WHERE idProducto = @idProducto;
-	COMMIT TRANSACTION;
+    -- Verificar si existe
+    IF @StockActual IS NULL
+    BEGIN
+        RAISERROR('Producto no existente o inactivo', 16, 1);
+        ROLLBACK TRANSACTION;
+        RETURN;
+    END
+
+    -- Verificar stock suficiente
+    IF @cantidad > @StockActual
+    BEGIN
+        RAISERROR('Stock insuficiente', 16, 1);
+        ROLLBACK TRANSACTION;
+        RETURN;
+    END
+
+    -- Insertar venta
+    INSERT INTO ventas(idProducto, cantidadVendida, total)
+    VALUES (@idProducto, @cantidad, @cantidad * @Precio);
+
+    -- Actualizar stock
+    UPDATE productos
+    SET stock = stock - @cantidad
+    WHERE idProducto = @idProducto;
+
+    COMMIT TRANSACTION;
 END;
+GO
+
+
+//DATOS QUEMADOS
+INSERT INTO proveedores(nombre, telefono, urlImagen, email) VALUES
+('Ferretería Central', 77770001, 'https://img.com/ferrecentral.png', 'central@ferreteria.com'),
+('Suministros El Salvador', 77770002, 'https://img.com/suminsv.png', 'contacto@suministros.com'),
+('Herramientas y Más', 77770003, 'https://img.com/herramás.png', 'ventas@herramientasymas.com'),
+('Construcciones Unidas', 77770004, 'https://img.com/construcciones.png', 'info@construcciones.com');
+GO
+INSERT INTO productos(nombre, descripcion, precio, urlImagen, stock, activo, idProveedor) VALUES
+('Martillo', 'Martillo de acero 500g con mango de madera', 12.50, 'https://img.com/martillo.png', 50, 1, 1),
+('Taladro Eléctrico', 'Taladro 500W con 2 velocidades', 85.00, 'https://img.com/taladro.png', 30, 1, 1),
+('Destornillador Phillips', 'Juego de 6 destornilladores Phillips', 15.00, 'https://img.com/destornillador.png', 100, 1, 2),
+('Llave Inglesa', 'Llave ajustable 8-32mm', 18.00, 'https://img.com/llave.png', 40, 1, 2),
+('Tornillo 5cm', 'Paquete x 100 tornillos acero inoxidable', 5.00, 'https://img.com/tornillo.png', 200, 1, 2),
+('Clavos 2 pulgadas', 'Paquete x 500 clavos de acero', 8.00, 'https://img.com/clavos.png', 150, 1, 3),
+('Cinta Métrica', 'Cinta métrica 5m de acero', 6.50, 'https://img.com/cinta.png', 80, 1, 3),
+('Nivel de burbuja', 'Nivel de burbuja 60cm aluminio', 12.00, 'https://img.com/nivel.png', 60, 1, 3),
+('Sierra Manual', 'Sierra manual 18 pulgadas', 25.00, 'https://img.com/sierra.png', 30, 1, 4),
+('Taladro Percutor', 'Taladro percutor 800W con maletín', 120.00, 'https://img.com/percutor.png', 20, 1, 4),
+('Broca 10mm', 'Broca para metal 10mm, paquete x 5', 7.50, 'https://img.com/broca.png', 100, 1, 1),
+('Cinta Aislante', 'Rollo de cinta aislante 20m', 3.50, 'https://img.com/cintaaislante.png', 200, 1, 1),
+('Guantes de Trabajo', 'Par de guantes de cuero resistentes', 10.00, 'https://img.com/guantes.png', 150, 1, 2),
+('Casco de Seguridad', 'Casco amarillo para construcción', 18.00, 'https://img.com/casco.png', 70, 1, 2),
+('Lija 120', 'Paquete x 5 hojas lija grano 120', 2.50, 'https://img.com/lija.png', 100, 1, 3),
+('Pintura Blanca 1L', 'Pintura látex blanca interior', 12.00, 'https://img.com/pintura.png', 60, 1, 3),
+('Pintura Negra 1L', 'Pintura látex negra interior', 13.00, 'https://img.com/pinturanegra.png', 50, 1, 4),
+('Cemento 50kg', 'Bolsa de cemento Portland', 7.50, 'https://img.com/cemento.png', 80, 1, 4),
+('Clavos 3 pulgadas', 'Paquete x 500 clavos acero inoxidable', 10.00, 'https://img.com/clavos3.png', 120, 1, 3),
+('Tubo PVC 3 pulgadas', 'Tubo PVC rígido 3m', 4.50, 'https://img.com/pvctubo.png', 200, 1, 1);
+GO
+INSERT INTO ventas(cantidadVendida, total, idProducto) VALUES
+(2, 25.00, 1),
+(1, 85.00, 2),
+(5, 75.00, 3),
+(1, 18.00, 4),
+(3, 15.00, 5),
+(4, 32.00, 6),
+(2, 13.00, 7),
+(1, 12.00, 8),
+(1, 25.00, 9),
+(1, 120.00, 10),
+(2, 15.00, 11),
+(5, 17.50, 12),
+(3, 30.00, 13),
+(1, 18.00, 14),
+(4, 10.00, 15),
+(2, 24.00, 16),
+(1, 13.00, 17),
+(5, 37.50, 18),
+(2, 20.00, 19),
+(3, 13.50, 20);
+GO
