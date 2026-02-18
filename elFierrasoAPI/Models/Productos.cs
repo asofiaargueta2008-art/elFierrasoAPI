@@ -12,6 +12,7 @@ namespace elFierrasoAPI.Models
         public decimal precio { get; set; }
         public string? urlImagen { get; set; }
         public int stock { get; set; }
+        public bool activo { get; set; }
         public int idProveedor { get; set; }
     }
 }

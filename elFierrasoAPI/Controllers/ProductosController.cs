@@ -1,12 +1,12 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using elFierrasoAPI.Data;
 using elFierrasoAPI.Models;
+using System.Linq;
 
 namespace elFierrasoAPI.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-
     public class ProductosController : ControllerBase
     {
         private readonly elFierrasoDbContext _context;
@@ -20,7 +20,10 @@ namespace elFierrasoAPI.Controllers
         [HttpGet]
         public IActionResult GetProductos()
         {
-            var productos = _context.Productos.ToList();
+            var productos = _context.Productos
+                .Where(p => p.activo == true)
+                .ToList();
+
             return Ok(productos);
         }
 
@@ -29,10 +32,10 @@ namespace elFierrasoAPI.Controllers
         public IActionResult GetProducto(int id)
         {
             var producto = _context.Productos.Find(id);
-            if (producto == null)
-            {
+
+            if (producto == null || producto.activo == false)
                 return NotFound(new { message = "Producto no encontrado." });
-            }
+
             return Ok(producto);
         }
 
@@ -47,25 +50,31 @@ namespace elFierrasoAPI.Controllers
             if (!proveedorExiste)
                 return BadRequest(new { message = "El idProveedor no existe." });
 
+            producto.activo = true;
+
             _context.Productos.Add(producto);
             _context.SaveChanges();
 
             return CreatedAtAction(nameof(GetProducto), new { id = producto.idProducto }, producto);
         }
 
-        // PUT: api/Productos/5
+        // PUT: api/Productos
         [HttpPut("{id}")]
         public IActionResult UpdateProducto(int id, [FromBody] Productos producto)
         {
-            if (id != producto.idProducto) 
-                return BadRequest(new { message = "El id no coincide."});
-            
-            if(!ModelState.IsValid) 
+            if (id != producto.idProducto)
+                return BadRequest(new { message = "El id no coincide." });
+
+            if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
             var existingProducto = _context.Productos.Find(id);
-            if (existingProducto == null) 
-                return NotFound(new { message = "Producto no encontrado."});
+            if (existingProducto == null || existingProducto.activo == false)
+                return NotFound(new { message = "Producto no encontrado." });
+
+            var proveedorExiste = _context.Proveedores.Any(p => p.idProveedor == producto.idProveedor);
+            if (!proveedorExiste)
+                return BadRequest(new { message = "El idProveedor no existe." });
 
             existingProducto.nombre = producto.nombre;
             existingProducto.precio = producto.precio;
@@ -77,12 +86,12 @@ namespace elFierrasoAPI.Controllers
             return NoContent();
         }
 
-        // PATH : api/Productos/
+        // PATCH: api/Productos/5 
         [HttpPatch("{id}")]
         public IActionResult UpdateProductoPartial(int id, [FromBody] Productos producto)
         {
             var existingProducto = _context.Productos.Find(id);
-            if (existingProducto == null)
+            if (existingProducto == null || existingProducto.activo == false)
                 return NotFound(new { message = "Producto no encontrado." });
 
             if (!string.IsNullOrWhiteSpace(producto.nombre))
@@ -95,7 +104,9 @@ namespace elFierrasoAPI.Controllers
 
             if (producto.stock != 0)
             {
-                if (producto.stock < 0) return BadRequest(new { message = "El stock no puede ser negativo." });
+                if (producto.stock < 0)
+                    return BadRequest(new { message = "El stock no puede ser negativo." });
+
                 existingProducto.stock = producto.stock;
             }
 
@@ -103,22 +114,31 @@ namespace elFierrasoAPI.Controllers
                 existingProducto.urlImagen = producto.urlImagen;
 
             if (producto.idProveedor > 0)
+            {
+                var proveedorExiste = _context.Proveedores.Any(p => p.idProveedor == producto.idProveedor);
+                if (!proveedorExiste)
+                    return BadRequest(new { message = "El idProveedor no existe." });
+
                 existingProducto.idProveedor = producto.idProveedor;
+            }
             else if (producto.idProveedor < 0)
+            {
                 return BadRequest(new { message = "idProveedor inválido." });
+            }
 
             _context.SaveChanges();
             return Ok(existingProducto);
         }
 
-        // DELETE: api/Productos/5
+        // DELETE: api/Productos
         [HttpDelete("{id}")]
         public IActionResult DeleteProducto(int id)
         {
             var producto = _context.Productos.Find(id);
-            if (producto == null) return NotFound(new { message = "Producto no encontrado." });
+            if (producto == null || producto.activo == false)
+                return NotFound(new { message = "Producto no encontrado." });
 
-            _context.Productos.Remove(producto);
+            producto.activo = false;
             _context.SaveChanges();
 
             return NoContent();
